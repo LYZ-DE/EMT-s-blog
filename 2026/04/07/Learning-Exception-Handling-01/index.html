@@ -1,0 +1,483 @@
+<!DOCTYPE html><html lang="en" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>Learning Exception Handling - 01 | EMT's 小窝</title><meta name="author" content="EMT"><meta name="copyright" content="EMT"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="FS - GS 及异常处理一般碰到C++异常逆向，确定了异常分发、处理部分，直接把call throw改为jmp catch块，再F5即可 PS: 多个catch块根据rdx来当为异常处理数值决定哪个为对应的catch块 FS - X86FS Segment RegisterSDT其实，FS 寄存器用来指示当前线程的 TEB 结构体然而这种段寄存器只有十六位，如何在 IA-32 系统中32位的指针">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Learning Exception Handling - 01">
+<meta property="og:url" content="https://lyz-de.github.io/EMT-s-blog/2026/04/07/Learning-Exception-Handling-01/index.html">
+<meta property="og:site_name" content="EMT&#39;s 小窝">
+<meta property="og:description" content="FS - GS 及异常处理一般碰到C++异常逆向，确定了异常分发、处理部分，直接把call throw改为jmp catch块，再F5即可 PS: 多个catch块根据rdx来当为异常处理数值决定哪个为对应的catch块 FS - X86FS Segment RegisterSDT其实，FS 寄存器用来指示当前线程的 TEB 结构体然而这种段寄存器只有十六位，如何在 IA-32 系统中32位的指针">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://lyz-de.github.io/EMT-s-blog/image/avator_0.png">
+<meta property="article:published_time" content="2026-04-07T13:24:11.000Z">
+<meta property="article:modified_time" content="2026-04-07T13:37:36.800Z">
+<meta property="article:author" content="EMT">
+<meta property="article:tag" content="CTF">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://lyz-de.github.io/EMT-s-blog/image/avator_0.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Learning Exception Handling - 01",
+  "url": "https://lyz-de.github.io/EMT-s-blog/2026/04/07/Learning-Exception-Handling-01/",
+  "image": "https://lyz-de.github.io/EMT-s-blog/image/avator_0.png",
+  "datePublished": "2026-04-07T13:24:11.000Z",
+  "dateModified": "2026-04-07T13:37:36.800Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "EMT",
+      "url": "https://lyz-de.github.io/EMT-s-blog"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/EMT-s-blog/img/favicon.ico"><link rel="canonical" href="https://lyz-de.github.io/EMT-s-blog/2026/04/07/Learning-Exception-Handling-01/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/EMT-s-blog/css/index.css?v=5.5.1"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/EMT-s-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: 'Copy Successful',
+    error: 'Copy Failed',
+    noSupport: 'Browser Not Supported'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: 'Just now',
+    min: 'minutes ago',
+    hour: 'hours ago',
+    day: 'days ago',
+    month: 'months ago'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.12.0/dist/infinitegrid.min.js',
+    buttonText: 'Load More'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'Learning Exception Handling - 01',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.0.0"></head><body><div id="web_bg" style="background-image: url(/EMT-s-blog/image/theme/bg_0.gif);"></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/EMT-s-blog/image/theme/bg_0.gif);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/EMT-s-blog/"><span class="site-name">EMT's 小窝</span></a><a class="nav-page-title" href="/EMT-s-blog/"><span class="site-name">Learning Exception Handling - 01</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  Back to Home</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">Learning Exception Handling - 01</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">Created</span><time class="post-meta-date-created" datetime="2026-04-07T13:24:11.000Z" title="Created 2026-04-07 21:24:11">2026-04-07</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">Updated</span><time class="post-meta-date-updated" datetime="2026-04-07T13:37:36.800Z" title="Updated 2026-04-07 21:37:36">2026-04-07</time></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">Post Views:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="FS-GS-及异常处理"><a href="#FS-GS-及异常处理" class="headerlink" title="FS - GS 及异常处理"></a>FS - GS 及异常处理</h1><p>一般碰到C++异常逆向，确定了异常分发、处理部分，直接把call throw改为jmp catch块，再F5即可</p>
+<p>PS: 多个catch块根据rdx来当为异常处理数值决定哪个为对应的catch块</p>
+<h1 id="FS-X86"><a href="#FS-X86" class="headerlink" title="FS - X86"></a>FS - X86</h1><p><strong>FS Segment Register<br>SDT</strong><br>其实，FS 寄存器用来指示当前线程的 TEB 结构体<br>然而这种段寄存器只有十六位，如何在 IA-32 系统中32位的指针表示？<br>实际上，FS段寄存器并非直接指向 TEB 结构体的位置，它<strong>持有 SDT 的索引</strong>，而该索引持有实际 TEB 地址。SDT 位于内核内存区域，其地址存储在 GDTR (Global Descriptor Table Resiger，全局描述符号表)<br>由于段寄存器实际存储的是 SDT 的索引，所以它也被称为 “段选择符” (Segment Selector)</p>
+<p><strong>FS 保存段选择子 → 通过 GDT&#x2F;LDT 的段描述符得到 FS 段基址 → Windows 把这个基址设置为当前线程 TEB（或其头部）所在位置 → 于是 <code>FS:[offset]</code> 就能读到 TEB&#x2F;NT_TIB 的字段。</strong></p>
+<p><a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/372580576?utm_source=chatgpt.com">知乎专栏+1CSDN博客+1</a></p>
+<ul>
+<li>FS[0x18] &#x3D; TEB 起始地址</li>
+<li>FS[0x30] &#x3D; PEB 起始地址</li>
+<li>FS[0] &#x3D; SEH 起始地址</li>
+</ul>
+<h1 id="SEH"><a href="#SEH" class="headerlink" title="SEH"></a>SEH</h1><p>SEH 是 Windows 操作系统默认的异常处理机制，在程序源代码中使用 try except finally 关键字来具体实现</p>
+<blockquote>
+<p>SEH 与 Windows 中的 try、catch 具有不同结构！！</p>
+</blockquote>
+<h2 id="OS-Exception-Handle"><a href="#OS-Exception-Handle" class="headerlink" title="OS Exception Handle"></a><strong>OS Exception Handle</strong></h2><p>同一程序在<strong>正常运行时</strong>与<strong>调试运行时</strong>表现出的行为行动是不同的，这是由于 Windows OS 的异常处理方法不同  </p>
+<h3 id="正常运行时的异常处理方法"><a href="#正常运行时的异常处理方法" class="headerlink" title="正常运行时的异常处理方法"></a>正常运行时的异常处理方法</h3><ul>
+<li>进程运行时若发生异常，OS 委托进程进行处理，若进程代码中存在具体的异常处理代码，则能顺利完成，程序继续运行</li>
+<li>但如果进行内部没有具体的实现 SEH，OS 就会启动默认的异常处理机制，终止程序运行</li>
+</ul>
+<h3 id="调试运行时的异常处理方法"><a href="#调试运行时的异常处理方法" class="headerlink" title="调试运行时的异常处理方法"></a>调试运行时的异常处理方法</h3><p>若被调试进程内部发生异常，OS 会首先把异常抛给调试进程处理。</p>
+<ul>
+<li>调试器几乎拥有被调试者的所有权限</li>
+<li>需要特别指出的是，被调试者内部发生的所有异常（错误）都由调试器处理</li>
+<li>所以调试过程中发生的所有异常（错误）都要由调试器管理（被调试者的 SEH 依据优先顺序推给调试器）</li>
+</ul>
+<p>被调试者发生异常时，调试器就会暂停运行，必须采取某种措施，完成后继续调试</p>
+<p>处理方法如下</p>
+<p>1）直接修改异常：代码、寄存器、内存</p>
+<p>修改引发异常的位置让其不再异常</p>
+<p>2）将异常抛给 被调试者 处理</p>
+<p>如果 被调试者 内部存在 SEH（异常处理函数）能够处理异常，那么异常通知会发送给 被调试者，由被调试器自行处理。</p>
+<p>如果当前进程在被我们的调试器所调试，我们可以按 SHIFT + F7&#x2F;F8&#x2F;F9 命令可以直接将当前异常抛还给 被调试者</p>
+<p>3）OS 默认的异常处理机制</p>
+<p>若调试器与被调试者都无法处理（或故意不处理）当前异常，则 OS 的默认异常处理机制会触发，终止进程。</p>
+<h2 id="Exception"><a href="#Exception" class="headerlink" title="Exception"></a><strong>Exception</strong></h2><h3 id="EXCEPTION-ACCESS-VIOLATION-C000-0005"><a href="#EXCEPTION-ACCESS-VIOLATION-C000-0005" class="headerlink" title="EXCEPTION_ACCESS_VIOLATION (C000 0005)"></a>EXCEPTION_ACCESS_VIOLATION (C000 0005)</h3><p>试图访问不存在或不具有访问权限的内存区域，就会发生 EXCEPTION_ACCESS_VLOLATION（非法访问异常，该异常最常见）。</p>
+<h3 id="EXCEPTION-BREAKPOINT-8000-0003"><a href="#EXCEPTION-BREAKPOINT-8000-0003" class="headerlink" title="EXCEPTION_BREAKPOINT (8000 0003)"></a>EXCEPTION_BREAKPOINT (8000 0003)</h3><p>在运行代码中设置断点后，CPU 尝试执行该地址处的指令时，将会发生 EXCEPTION_BREAKPOINT 异常</p>
+<p><strong>INT3</strong></p>
+<p>设置该断点的汇编指令为 INT3，对应机器码（IA-32 指令） 0xCC</p>
+<p>调试器就是利用该功能实现断点功能</p>
+<h3 id="EXCEPTION-ILLGAL-INSTRUCTION-C000-001D"><a href="#EXCEPTION-ILLGAL-INSTRUCTION-C000-001D" class="headerlink" title="EXCEPTION_ILLGAL_INSTRUCTION (C000 001D)"></a>EXCEPTION_ILLGAL_INSTRUCTION (C000 001D)</h3><p>CPU 遇到无法解析的指令的时候，比如 “0FFF” 指令在 x86 CPU 中未定义，CPU遇到该指令将引发 EXCEPTION_ILLEGAL_INSTRUCTION 异常</p>
+<h3 id="EXCETION-INT-DIVIDE-BY-ZERO-C000-0094"><a href="#EXCETION-INT-DIVIDE-BY-ZERO-C000-0094" class="headerlink" title="EXCETION_INT_DIVIDE_BY_ZERO (C000 0094)"></a>EXCETION_INT_DIVIDE_BY_ZERO (C000 0094)</h3><p>INTEGER（整数）除法运算中，若分母为0（即除0）。</p>
+<h3 id="EXCEPTION-SINGLE-STEP-8000-0004"><a href="#EXCEPTION-SINGLE-STEP-8000-0004" class="headerlink" title="EXCEPTION_SINGLE_STEP (8000 0004)"></a>EXCEPTION_SINGLE_STEP (8000 0004)</h3><p>Single Step（单步）的含义是执行一条指令，然后暂停。</p>
+<p>CPU 进入单步模式后，每执行一条指令就会引发 EXCEPTION_SINGLE_STEP 异常，暂停运行。</p>
+<p>将 EFLAGS 寄存器的 TF (Trap Flag, 陷阱标志) 位设置为 1 ，CPU就会进入单步工作模式。</p>
+<h2 id="SEH-链"><a href="#SEH-链" class="headerlink" title="SEH 链"></a>SEH 链</h2><p>SEH 以链的形式存在，第一个异常处理器中若未处理相关异常，就会传递到下个异常处理器，直到得到处理。</p>
+<p>从技术层面来看，SEH 是 _EXCEPTION_REGISTRATION_RECORD 结构体组成的链表</p>
+<p>Next 成员是指向下一个 _EXCEPTION_REGISTRATION_RECORD 结构体的指针，Handler 成员是异常处理函数（异常处理器）</p>
+<p>若 Next 成员的值为 FFFF FFFF，则表示它是链表的最后一个结点，该节点的回调函数是系统设置的一个终结处理函数，所有无人值守的异常都会到达这里。</p>
+<p>异常发生时，该异常则会按照 （A）-&gt;（B）-&gt;（C）的顺序依次传递，直到有异常处理器处理</p>
+<h3 id="SEH-异常处理函数的定义-except-handler"><a href="#SEH-异常处理函数的定义-except-handler" class="headerlink" title="SEH 异常处理函数的定义 _except_handler"></a>SEH 异常处理函数的定义 _except_handler</h3><p>函数定义如下</p>
+<ul>
+<li>异常处理函数接收这4个参数</li>
+<li>返回值为 EXCEPTION_DISPOSITION 的枚举类型</li>
+</ul>
+<h3 id="except-handler-pRecord"><a href="#except-handler-pRecord" class="headerlink" title="_except_handler-&gt; pRecord"></a>_except_handler-&gt; pRecord</h3><p><strong>首先第一个参数的结构体为 EXCEPTION_RECORD</strong></p>
+<p>定义如下，关注两个重要成员</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">ExceptionCode // 异常类型</span><br><span class="line">ExceptionAddress // 发生异常的地址</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h3 id="except-handler-pContext"><a href="#except-handler-pContext" class="headerlink" title="_except_handler-&gt; pContext"></a>_except_handler-&gt; pContext</h3><p><strong>其次该结构体中的第三个参数是指向 CONTEXT 结构体的指针</strong></p>
+<p>CONTEXT 是用来保存 CPU 寄存器的值，因为多线程环境下需要这样做，当切换去其他线程时，需要保存当前的线程的 CONTEXT 结构体</p>
+<p>于是有趣的事情来了，当异常发生时，执行异常代码的线程就会中断运行，转而执行 SEH，OS 就会把线程的 CONTEXT 发送给异常处理函数的相应参数。</p>
+<p>该 CONTEXT 结构体的一个成员 EIP（偏移量：B8），注意该成员经常在反调试技术中应用</p>
+<p>用法如，在异常处理函数中把 CONTEXT.EIP 设置为其他地址，然后成功返回异常处理函数，这时候就成功执行到了我设置的新 EIP 的位置。</p>
+<h3 id="EXCEPTION-DISPOSITION"><a href="#EXCEPTION-DISPOSITION" class="headerlink" title="EXCEPTION_DISPOSITION"></a>EXCEPTION_DISPOSITION</h3><p>该枚举类型具体含义</p>
+<p>成功处理异常后返回 ExceptionContinueExecution(0)</p>
+<p>当前异常无法处理异常返回 ExceptionContinueSearch(1)</p>
+<h2 id="TEB-NtTib-ExceptionList"><a href="#TEB-NtTib-ExceptionList" class="headerlink" title="TEB.NtTib.ExceptionList"></a>TEB.NtTib.ExceptionList</h2><p>通过 TEB 结构体的 NitTib 成员可以直接访问到 SEH 链</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">TEB.NtTib.ExceptionList = FS:[0]</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="SEH-安装方法"><a href="#SEH-安装方法" class="headerlink" title="SEH 安装方法"></a>SEH 安装方法</h2><p>C语言中通过使用 try except finally，而汇编中更加轻松</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">PUSH @MyHandler    ; 要添加的异常处理器</span><br><span class="line">PUSH DWORD PTR FS:[0] ; 原先的异常列表</span><br><span class="line">MOV DWORD PTR FS:[0], ESP ; 将添加后的链表设置到链表</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<hr>
+<p>这就是把自身的异常处理器添加到已有的 SEH 链表</p>
+<p>从技术层面来讲就是将自身的 EXCEPTION_REGISRATION_RECORD 结构体链接到 EXCEPTION_REGISTATION_RECORD 结构体链表</p>
+<p>一个例子：</p>
+<figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">#include &lt;Windows.h&gt;</span></span><br><span class="line"><span class="comment">#include &lt;iostream&gt;</span></span><br><span class="line">int exception_memory_access_violation(LPEXCEPTION_POINTERS p_exinfo)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">if</span> (p_exinfo-&gt;ExceptionRecord-&gt;ExceptionCode == EXCEPTION_ACCESS_VIOLATION)</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">return</span>  EXCEPTION_EXECUTE_HANDLER; //handle this exception</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">else</span> <span class="keyword">return</span> EXCEPTION_CONTINUE_SEARCH; //<span class="keyword">Do</span> not handle this exception</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">int main()</span><br><span class="line">&#123;</span><br><span class="line">    char* mem = <span class="number">0</span>;</span><br><span class="line">    std::cout &lt;&lt; <span class="string">&quot;Hello World!\n&quot;</span>;</span><br><span class="line">    __try &#123;</span><br><span class="line">        *mem = <span class="number">0</span>; //<span class="keyword">throw</span> exception</span><br><span class="line">    &#125;</span><br><span class="line">    __except (exception_memory_access_violation(GetExceptionInformation()))  //handler</span><br><span class="line">    &#123;</span><br><span class="line">        puts(<span class="string">&quot;Memory error in except&quot;</span>);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="TEB"><a href="#TEB" class="headerlink" title="TEB"></a>TEB</h1><p>TEB（Thread Environment Block）指的是线程环境块：</p>
+<ul>
+<li>该结构体包含<strong>进程中运行线程的各种信息</strong></li>
+<li>进程中的每个线程都有对应的TEB结构体</li>
+</ul>
+<blockquote>
+<p>进程：一个在内存中运行的应用程序。每个进程都有自己独立的一块内存空间，一个进程可以有多个线程，比如在Windows系统中，一个运行的xx.exe就是一个进程</p>
+<p>线程：进程中的一个执行任务（控制单元），负责当前进程中程序的执行。一个进程至少有一个线程，一个进程可以运行多个线程，多个线程可共享数据。</p>
+</blockquote>
+<p><code>nt!_TEB</code></p>
+<p>**<code>+**0x000</code> <code>NtTib            : _NT_TIB</code></p>
+<p>**<code>+**0x01c</code> <code>EnvironmentPointer : Ptr32 Void</code></p>
+<h2 id="TEB-Access-Method"><a href="#TEB-Access-Method" class="headerlink" title="TEB Access Method"></a><strong>TEB Access Method</strong></h2><p>用 WinDbg：<br>• 切到某个线程上下文后，用 <code>!teb</code> 看它的 TEB（用户态&#x2F;内核态都有对应用法说明）。<a target="_blank" rel="noopener" href="https://learn.microsoft.com/zh-cn/windows-hardware/drivers/debuggercmds/-teb?utm_source=chatgpt.com">Microsoft Learn</a><br>• 再用符号配合 <code>dt _TEB &lt;地址&gt;</code> 展开字段。</p>
+<p><strong>Ntdll.NtCurrentTeb()</strong><br>Ctrl + G 或者 Search for Name in all modules 跳到该API<br>可以发现 FS:[18] 就是返回TEB地址，这就是就是Self指针</p>
+<p><strong>FS Segment Register<br>SDT</strong><br>其实，FS 寄存器用来指示当前线程的 TEB 结构体<br>然而这种段寄存器只有十六位，如何在 IA-32 系统中32位的指针表示？<br>实际上，FS段寄存器并非直接指向 TEB 结构体的位置，它<strong>持有 SDT 的索引</strong>，而该索引持有实际 TEB 地址SDT 位于内核内存区域，其地址存储在 GDTR (Global Descriptor Table Resiger，全局描述符号表)<br>由于段寄存器实际存储的是 SDT 的索引，所以它也被称为 “段选择符” (Segment Selector)</p>
+<h2 id="Important-Members-Of-The-TEB-Structure"><a href="#Important-Members-Of-The-TEB-Structure" class="headerlink" title="Important Members Of The TEB Structure"></a><strong>Important Members Of The TEB Structure</strong></h2><p>TEB 结构体的成员多而复杂，下面是一些比较重要的：</p>
+<p><strong>ProcessEnvironmentBlock</strong><br>首先是Offset 30处的 ProcessEnvironmentBlock 成员，它是指向PEB（Process Environment Block，进程环境块），结构体的指针。</p>
+<p><strong>NitTib</strong><br>TEB 结构体的第一个成员为 NT_TIB 结构体（TIB 是 Thread Infomation Block 的简称，意味线程信息块）<br>结构体如下：</p>
+<figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">typedef struct _NT_TIB          //sizeof  <span class="number">1</span>ch</span><br><span class="line">&#123;</span><br><span class="line"><span class="number">00</span><span class="built_in">h</span>   struct _EXCEPTION_REGISTRATION  *ExceptionList;          //SEH链入口</span><br><span class="line"><span class="number">04</span><span class="built_in">h</span>   PVOID                            StackBase;              //堆栈基址</span><br><span class="line"><span class="number">08</span><span class="built_in">h</span>   PVOID                            StackLimit;             //堆栈大小</span><br><span class="line"><span class="number">0</span>ch   PVOID                            SubSystemTib;</span><br><span class="line">     union &#123;</span><br><span class="line">         PVOID                FiberData;</span><br><span class="line"><span class="number">10</span><span class="built_in">h</span>       DWORD                Version;</span><br><span class="line">     &#125;;</span><br><span class="line"><span class="number">14</span><span class="built_in">h</span>   PVOID                            ArbitraryUserPointer;</span><br><span class="line"><span class="number">18</span><span class="built_in">h</span>   struct _NT_TIB                   *Self;                  //本NT_TIB结构自身的线性地址</span><br><span class="line">&#125;NT_TIB;</span><br></pre></td></tr></table></figure>
+
+<p><strong>ExceptionList</strong><br>• x86 下最常见：指向该线程的异常处理注册记录链表头（传统 SEH 链的入口）。<br>• x64 下异常处理主要是表驱动机制，这个字段不再扮演 x86 那种“核心链表入口”的角色。</p>
+<p><strong>StackBase</strong><br>• 线程栈的上界（通常是高地址端），用于判断栈范围、分析栈使用情况。</p>
+<p><strong>StackLimit</strong><br>• 线程栈的下界（通常是低地址端），同样用于判断栈范围。</p>
+<p><strong>SubSystemTib</strong><br>• 子系统保留&#x2F;使用的指针字段；具体用途可能随系统版本&#x2F;子系统变化，不建议把它当成稳定接口依赖。</p>
+<p><strong>FiberData &#x2F; Version（联合体）</strong><br>• <strong>FiberData</strong>：与纤程（Fiber）相关的数据入口（线程被转换成 Fiber 后用于保存&#x2F;访问 Fiber 的状态&#x2F;数据）。<br>• <strong>Version</strong>：某些定义里用于版本&#x2F;兼容信息；实现细节可能随版本变化。</p>
+<p><strong>ArbitraryUserPointer</strong><br>• “任意用户指针”：留给运行库&#x2F;调试器&#x2F;框架在“线程级别”存放一个自定义指针用的字段（用途不固定）。</p>
+<p><strong>Self</strong><br>• 自引用指针：指向当前 NT_TIB 自己（也等价于指向 TEB 的起始处），可用于快速定位&#x2F;校验。</p>
+<p>比较关心的成员有<br>• ExceptionList 指向 _EXCEPTION_REGISTRATION_RECORD 结构体组成的链表，就是Windows OS的SEH<br>• Self 指向 _NT_TIB 结构体自引用指针<br>    ◦ 也是 TEB 结构体指针（因为 TEB 结构体的第一个成员就是 _NT_TEB 结构体）</p>
+<h1 id="PEB"><a href="#PEB" class="headerlink" title="PEB"></a>PEB</h1><p>PEB (Process Environment Block，进程环境块)，这是存放进程信息的结构体，尺寸非常大。</p>
+<h2 id="PEB-Access-Method"><a href="#PEB-Access-Method" class="headerlink" title="PEB Access Method"></a><strong>PEB Access Method</strong></h2><p>那么访问其实就是 FS:[30] 即可，可以有多种方法</p>
+<p><code>MOV EAX, DWORD PTR FS:[30] ; FS[30] = ADDRESS OF PEB</code></p>
+<p><code>MOV EAX, DWORD PTR FS:[18] ; FS[18] = ADDRESS OF TEB</code></p>
+<p><code>MOV EAX, DWORD PTR FS:[EAX + 30] ; DS[EAX + 30] = ADDRESS OF PEB</code></p>
+<h2 id="Important-Members-Of-The-PEB-Structure"><a href="#Important-Members-Of-The-PEB-Structure" class="headerlink" title="Important Members Of The PEB Structure"></a><strong>Important Members Of The PEB Structure</strong></h2><h3 id="PEB-BeingDebugged"><a href="#PEB-BeingDebugged" class="headerlink" title="PEB.BeingDebugged"></a><strong>PEB.BeingDebugged</strong></h3><p>Kenerl32.dll 中有个名为 Kernel32IsDebuggerPresent() 的API，普通程序我们一般不用到<br><code>BOOL WINAPI IsDebuggerPresent(void);</code><br>该 API 函数用于判断当前进程是否处于调试状态，并返回判断结果。<br>该 API 通过检测 PEB.BeingDebuggered 成员确定是否正在调试进程（是，返回1；否，返回0）</p>
+<p>• 获取 FS:[18] 的 TEB 地址<br>• 然后通过 DS:[TEB + 30] 处的 TEB.Process-EnvironmentBlock 成员访问 PEB 结构体<br>• 查看 PEB.BeingDebuggered 成员的地址的值</p>
+<h3 id="PEB-ImageBaseAddress"><a href="#PEB-ImageBaseAddress" class="headerlink" title="PEB.ImageBaseAddress"></a><strong>PEB.ImageBaseAddress</strong></h3><p>（指的是 <strong>主 EXE 映像</strong>（不是某个 DLL）被加载到当前进程地址空间后的 <strong>起始地址</strong>。）<br>PEB.ImageBaseAddress 成员用来表示进程的 ImageBase<br>GetModuleHandle() API 用来获取 ImageBase</p>
+<p><code>HMODULE WINAPI GetModuleHandle(__in_opt LPCSTR lpModuleName)</code><br>向 lpModuleHandle 参数赋值为 NULL，调用 GetModuleHandle() 函数将返回进程被加载的 ImageBase</p>
+<h3 id="PEB-Ldr"><a href="#PEB-Ldr" class="headerlink" title="PEB.Ldr"></a>PEB.Ldr</h3><ul>
+<li><p><strong><code>PEB.Ldr</code> 是一个指针</strong>，指向一个结构体：<code>_PEB_LDR_DATA</code>。</p>
+</li>
+<li><p>这块数据由 Windows 的 **Loader（加载器）**维护，用来记录“当前进程已经加载了哪些模块（EXE&#x2F;DLL）”。<br>  微软文档里也明确：<code>PEB_LDR_DATA</code> 里有模块列表表头，列表里的每一项都对应 <code>LDR_DATA_TABLE_ENTRY</code>。<a target="_blank" rel="noopener" href="https://learn.microsoft.com/zh-cn/windows/win32/api/winternl/ns-winternl-peb_ldr_data?utm_source=chatgpt.com">Microsoft Learn</a></p>
+</li>
+</ul>
+<p>当模块（DLL）加载到进程后，通过 PEB.Ldr 成员可以直接获取该模块的加载地址，所以这是非常重要的成员。</p>
+<p>_PEB_LDR_DATA 结构体成员中有3个 _LIST_ENTRY 成员，该又是个结构体：</p>
+<p>在 <code>_PEB_LDR_DATA</code> 中最重要的就是三条双向链表的“表头”（每个表头类型都是 <code>_LIST_ENTRY</code>）：</p>
+<ul>
+<li><p><code>InLoadOrderModuleList</code></p>
+</li>
+<li><p><code>InMemoryOrderModuleList</code></p>
+</li>
+<li><p><code>InInitializationOrderModuleList</code></p>
+</li>
+<li><p><strong>LoadOrder</strong>：按加载顺序串</p>
+</li>
+<li><p><strong>MemoryOrder</strong>：按内存布局&#x2F;映射相关的顺序串（实践里常用它做枚举）</p>
+</li>
+<li><p><strong>InitializationOrder</strong>：按初始化顺序串（与 DLL 初始化过程相关）</p>
+</li>
+</ul>
+<p>总的来说：</p>
+<ul>
+<li><strong>PEB.Ldr</strong> → 指向 <strong>PEB_LDR_DATA</strong></li>
+<li><strong>PEB_LDR_DATA</strong> 里有三条 <strong>LIST_ENTRY 双向链表表头</strong></li>
+<li>每个模块对应一个 <strong>LDR_DATA_TABLE_ENTRY</strong></li>
+<li>LDR 条目里有 <code>DllBase/Name/Size</code> 等信息，同时自带 3 个 links 节点挂到三条链上</li>
+<li>遍历链表就能枚举所有模块并拿到基址（DllBase）<a target="_blank" rel="noopener" href="https://learn.microsoft.com/zh-cn/windows/win32/api/winternl/ns-winternl-peb_ldr_data?utm_source=chatgpt.com">博客园+2Microsoft Learn+2博客园+2</a></li>
+</ul>
+<h3 id="PEB-ProcessHeap-PEB-NtGlobalFlag"><a href="#PEB-ProcessHeap-PEB-NtGlobalFlag" class="headerlink" title="PEB.ProcessHeap &amp; PEB.NtGlobalFlag"></a>PEB.ProcessHeap &amp; PEB.NtGlobalFlag</h3><p>这两个成员都是应用于反调试，若进程处于调试状态，两个成员都有特定值。</p>
+<h1 id="GS-X64"><a href="#GS-X64" class="headerlink" title="GS - X64"></a>GS - X64</h1><h1 id="异常处理"><a href="#异常处理" class="headerlink" title="异常处理"></a>异常处理</h1><p><em>例外</em>是程序执行过程中发生的事件，要求在正常控制流之外执行代码。例外分为两种：硬件例外和软件例外。<em>硬件异常</em>由CPU发起。它们可能源于执行某些指令序列，例如除以零或尝试访问无效内存地址。<em>软件异常</em>是由应用程序或作系统显式发起的。例如，系统可以检测何时指定了无效参数值。</p>
+<p><em>结构化异常处理</em>是一种同时处理硬件和软件异常的机制。因此，你的代码会以相同的方式处理硬件和软件异常。结构化异常处理允许您完全控制异常处理，支持调试器，并且适用于所有编程语言和机器。<em>矢量异常处理</em>是结构化异常处理的扩展。</p>
+<p>系统还支持<em>终止处理</em>，确保每当执行受保护的代码时，也会执行指定的终止代码块。终端代码无论控制流如何离开被保护的身体都会执行。例如，终止处理程序可以保证即使异常或其他错误发生，在受保护的代码体执行时，清理任务依然会被执行。</p>
+<p>异常可以由硬件或软件发起，且可发生在内核模式和用户模式代码中。结构化异常处理为处理内核模式和用户模式异常提供了单一机制。</p>
+<p>某些指令序列的执行可能导致硬件发起的异常。例如，当进程尝试从没有适当访问权限的虚拟地址读取或写入时，硬件就会生成访问违规。</p>
+<p>需要异常处理的事件也可能发生在软件例程执行过程中（例如，当指定了无效参数值时）。当发生这种情况时，线程可以通过调用 <a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/api/errhandlingapi/nf-errhandlingapi-raiseexception"><strong>RaiseException</strong></a> 函数显式发起异常。该函数使调用线程能够指定描述异常的信息。</p>
+<p>例外可以是连续的或不可连续的。当事件在硬件中不可连续，或延续无意义时，就会出现不可连续异常。不可延续的异常不会终止应用。因此，应用程序可能能够捕获异常并执行。然而，不可连续异常通常是由于堆栈损坏或其他严重问题导致的，这使得从异常中恢复变得困难。</p>
+<h1 id="异常调度"><a href="#异常调度" class="headerlink" title="异常调度"></a><strong>异常调度</strong></h1><p>当硬件或软件异常发生时，处理器会在异常发生的那一刻停止执行，并将控制权转移给系统。首先，系统会保存当前线程的机器状态和描述异常的信息。系统随后尝试寻找异常处理程序来处理该异常。</p>
+<p>异常发生的线程的机器状态被保存在 <a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/desktop/api/WinNT/ns-winnt-arm64_nt_context"><strong>CONTEXT</strong></a> 结构中。这些信息（称为<em>上下文记录</em>）使系统能够在异常发生点继续执行，前提是异常被成功处理。异常的描述（称为<strong>异常记录</strong>）保存在<a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/desktop/api/WinNT/ns-winnt-exception_record"><strong>EXCEPTION_RECORD</strong></a>结构中。由于它将上下文记录的机器相关信息与异常记录的机器无关信息分开存储，异常处理机制可移植到不同平台。</p>
+<p>上下文记录和异常记录中的信息都可以通过 <a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/debug/getexceptioninformation"><strong>GetExceptionInformation</strong></a> 函数获得，并且可以向因异常而执行的任何异常处理程序开放。例外记录包含以下信息。</p>
+<ul>
+<li>一个用于识别异常类型的异常代码。</li>
+<li>指示异常是否可延续的标志。任何在非连续异常后继续执行的尝试都会生成另一个异常。</li>
+<li>指向另一个例外记录的指针。这有助于在嵌套异常发生时创建异常链表。</li>
+<li>例外发生的地址。</li>
+<li>一系列参数，提供关于异常的额外信息。</li>
+</ul>
+<p>当用户模式代码中出现异常时，系统会使用以下搜索顺序来寻找异常处理程序：</p>
+<ol>
+<li>如果进程正在调试，系统会通知调试器。更多信息请参见<a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/debug/debugger-exception-handling">调试器异常处理</a>。</li>
+<li>如果进程未被调试，或相关调试器未处理异常，系统会尝试通过搜索异常发生线程的栈帧来寻找基于帧的异常处理程序。系统先搜索当前栈帧，然后按相反顺序搜索前一个栈帧。</li>
+<li>如果找不到基于帧的处理器，或没有基于帧的处理器处理异常，但进程正在调试，系统会再次通知调试器。</li>
+<li>如果进程未被调试，或相关调试器不处理异常，系统会根据异常类型提供默认处理。对于大多数例外情况，默认作是调用<a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-exitprocess"><strong>ExitProcess</strong></a>函数。</li>
+</ol>
+<p>当内核模式代码中出现异常时，系统会搜索内核堆栈的堆栈帧，试图找到异常处理程序。如果找不到处理程序或没有处理程序处理异常，系统会像调用 <a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-exitwindows"><strong>ExitWindows</strong></a> 函数一样关闭。</p>
+<h1 id="调试器异常处理"><a href="#调试器异常处理" class="headerlink" title="调试器异常处理"></a><strong>调试器异常处理</strong></h1><p>系统对用户模式异常的处理支持了复杂的调试器。如果异常发生的进程正在调试，系统会生成一个调试事件。如果调试器使用 <a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/api/debugapi/nf-debugapi-waitfordebugevent"><strong>WaitForDebugEvent</strong></a> 函数，调试事件会使该函数返回并指向 <a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/api/minwinbase/ns-minwinbase-debug_event"><strong>DEBUG_EVENT</strong></a> 结构的指针。该结构包含调试器可用于访问线程上下文记录的进程和线程标识符。该结构还包含一个<a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/api/minwinbase/ns-minwinbase-exception_debug_info"><strong>EXCEPTION_DEBUG_INFO</strong></a>结构，其中包含例外记录的副本。</p>
+<p>当系统在寻找异常处理程序时，会尝试两次通知进程的调试器。第一次通知尝试为调试器提供了处理断点或单步异常的机会。这被称为<em>首次通知</em>。用户随后可以发布调试器命令，在执行任何异常处理程序之前作进程的环境。只有当系统找不到处理异常的基于帧的异常处理程序时，才会第二次尝试通知调试器。这被称为<em>最后机会通知</em>。如果调试器在最后机会通知后未处理异常，系统会终止被调试进程。</p>
+<p>每次通知尝试时，调试器都会使用<a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/api/debugapi/nf-debugapi-continuedebugevent"><strong>ContinueDebugEvent</strong></a>函数将控制权返回系统。在返回控制权之前，调试器可以处理异常并根据需要修改线程状态，或者选择不处理异常。通过 <strong>ContinueDebugEvent</strong>，调试器可以表示已处理异常，此时机器状态会恢复，线程执行会在异常发生的那个点继续。调试器还可以表示未处理异常，这会导致系统继续寻找异常处理程序。</p>
+<h1 id="浮点例外"><a href="#浮点例外" class="headerlink" title="浮点例外"></a><strong>浮点例外</strong></h1><p>默认情况下，系统关闭了所有FP例外。因此，计算结果是 NAN 或无穷大，而非例外。在使用结构化异常处理捕捉浮点（FP）异常之前，必须调用<a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/previous-versions/visualstudio/visual-studio-2010/c9676k6h(v=vs.100)">_controlfp_s</a> C运行时库函数来开启所有可能的FP异常。要只捕捉特定例外，只需使用对应被捕捉异常的标志。注意，任何处理FP错误的处理程序都应调用<a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/clear87-clearfp">_clearfp</a>作为其第一个FP指令。该函数用于清除浮点异常。</p>
+<h2 id="异常发生后，大致的流程？。"><a href="#异常发生后，大致的流程？。" class="headerlink" title="异常发生后，大致的流程？。"></a>异常发生后，大致的流程？。</h2><ol>
+<li><strong>如果有调试器</strong>：调试器先得到 <em>first-chance</em> 通知</li>
+<li><strong>VEH 链</strong>：按注册顺序调用所有向量异常处理器（还没开始栈展开）</li>
+<li><strong>SEH（栈帧级）</strong>：才进入 <code>__try/__except/__finally</code> 这套，必要时开始 <strong>unwind（栈展开）</strong></li>
+<li><strong>仍无人处理</strong>：走到未处理异常路径（比如 <code>UnhandledExceptionFilter</code> &#x2F; 用 <code>SetUnhandledExceptionFilter</code> 设置的顶层过滤器） <a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/debug/vectored-exception-handling">Microsoft Learn+1Microsoft Learn+1</a></li>
+</ol>
+<p>VEH 有“更早、全局”的特点，是微软文档明确写的：<strong>在调试器 first-chance 之后、系统开始展开堆栈之前</strong>调用。<a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/debug/vectored-exception-handling">Microsoft Learn</a></p>
+<p><strong>SEH（结构化异常处理）</strong> 和 <strong>VEH（向量异常处理）和 VCH (向量继续处理程序)</strong></p>
+<h1 id="VEH"><a href="#VEH" class="headerlink" title="VEH"></a>VEH</h1><p>Windows 提供的“向量异常处理”。你可以通过 API <strong>动态注册回调</strong>，例如</p>
+<p>AddVectoredExceptionHandler</p>
+<p>RemoveVectoredExceptionHandler</p>
+<p><a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/debug/vectored-exception-handling?utm_source=chatgpt.com">Microsoft Learn</a></p>
+<p>矢量异常处理程序是结构化异常处理的扩展。应用程序可以注册一个函数来监视或处理该应用的所有异常。矢量处理程序不是基于帧的，因此你可以添加一个处理程序，无论你在调用帧的哪个位置都会被调用。向量处理程序按添加顺序调用，即调试器收到第一机会通知后，但系统开始解堆栈之前。</p>
+<p>要添加矢量继续处理程序，可以使用 <a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/api/errhandlingapi/nf-errhandlingapi-addvectoredcontinuehandler"><strong>AddVectoredContinueHandler</strong></a> 函数。要移除该处理程序，可以使用 <a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/api/errhandlingapi/nf-errhandlingapi-removevectoredcontinuehandler"><strong>RemoveVectoredContinueHandler</strong></a> 函数。</p>
+<p>要添加矢量异常处理程序，可以使用 <a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/api/errhandlingapi/nf-errhandlingapi-addvectoredexceptionhandler"><strong>AddVectoredExceptionHandler</strong></a> 函数。要移除该处理程序，可以使用 <a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/api/errhandlingapi/nf-errhandlingapi-removevectoredexceptionhandler"><strong>RemoveVectoredExceptionHandler</strong></a> 函数。</p>
+<h1 id="基于帧的异常处理"><a href="#基于帧的异常处理" class="headerlink" title="基于帧的异常处理"></a><strong>基于帧的异常处理</strong></h1><p><em>基于帧的异常处理</em>程序允许你处理异常可能出现在特定代码序列中的情况。基于帧的异常处理程序由以下元素组成。</p>
+<ul>
+<li>一套被严密守护的代码体系</li>
+<li>滤波表达式</li>
+<li>异常处理块</li>
+</ul>
+<p>基于帧的异常处理程序以语言特定的语法声明。例如，在Microsoft的C&#x2F;C++优化编译器中，它们是通过**__try<strong>和</strong>__except**实现的。更多信息请参见<a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/debug/handler-syntax">处理者语法</a>。</p>
+<p><em>受保护代码体</em>是一组由过滤表达式和异常处理块提供异常处理保护的一组语句。被保护的主体可以是一个代码块、一组嵌套的块，或是一个完整的过程或函数。使用Microsoft C&#x2F;C++优化编译器，保护实体被括号（{}）围绕**__try**关键字。</p>
+<p>基于帧的异常处理程序的<em>过滤表达</em>式是系统在被保护体内发生异常时评估的一个表达式。该评估导致系统采取以下作之一。</p>
+<ul>
+<li>系统停止寻找异常处理程序，恢复机器状态，并在异常发生点继续线程执行。</li>
+<li>系统继续寻找异常处理程序。</li>
+<li>系统将控制权转移给异常处理器，线程执行在异常处理器所在的栈帧中顺序继续。如果处理程序不在异常发生的堆栈帧中，系统会解开该栈，保持当前栈帧和其他栈帧，直到返回异常处理程序的栈帧。在执行异常处理程序之前，会对因控制权转移给异常处理程序而终止的任何受保护代码体执行终止处理程序。有关终止处理程序的更多信息，请参见<a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/debug/termination-handling">终止处理</a>。</li>
+</ul>
+<p>滤波表达式可以是简单的表达式，也可以调用一个过滤<em>函数</em>来尝试处理异常。你可以在过滤表达式中调用 <a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/debug/getexceptioncode"><strong>GetExceptionCode</strong></a> 和 <a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/debug/getexceptioninformation"><strong>GetExceptionInformation</strong></a> 函数，获取被过滤异常的信息。<strong>GetExceptionCode</strong> 返回一个识别异常类型的代码，<strong>GetExceptionInformation</strong> 返回一个指向包含 <a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/desktop/api/WinNT/ns-winnt-arm64_nt_context"><strong>CONTEXT</strong></a> 和 <a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/desktop/api/WinNT/ns-winnt-exception_record"><strong>EXCEPTION_RECORD</strong></a> 结构的 <a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/desktop/api/WinNT/ns-winnt-exception_pointers"><strong>EXCEPTION_POINTERS</strong></a> 结构的指针。</p>
+<p>这些函数无法在滤波函数内部调用，但其返回值可以作为参数传递给滤波函数。<a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/debug/getexceptioncode"><strong>GetExceptionCode</strong></a> 可以在异常处理程序块中使用，但 <a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/debug/getexceptioninformation"><strong>GetExceptionInformation</strong></a> 不能，因为它指向的信息通常在栈中，当控制权转移到异常处理程序时会被销毁。然而，应用程序可以将信息复制到安全存储，以便异常处理程序使用。</p>
+<p>过滤函数的优点在于它可以处理异常并返回一个值，使系统从异常发生点继续执行。相比之下，异常处理块的执行是从异常处理程序顺序继续，而不是从异常点开始。</p>
+<p>处理异常可能简单到记录错误并设置一个稍后会检查的标志，打印警告或错误消息，或采取其他有限的作。如果可以继续执行，可能还需要通过修改上下文记录来改变机器状态。关于处理页面错误异常的过滤函数示例，请参见<a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/memory/using-the-memory-management-functions">“使用虚拟内存函数</a>”。</p>
+<p><a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/api/errhandlingapi/nf-errhandlingapi-unhandledexceptionfilter"><strong>UnhandledExceptionFilter</strong></a> 函数可以作为过滤器表达式中的过滤函数使用。除非进程正在调试，否则它会返回EXCEPTION_EXECUTE_HANDLER，这种情况下返回EXCEPTION_CONTINUE_SEARCH。</p>
+<h1 id="终端处理"><a href="#终端处理" class="headerlink" title="终端处理"></a><strong>终端处理</strong></h1><p><em>终止处理</em>程序确保每当控制流离开某个受保护的代码体时，执行特定的代码块。终端处理程序由以下元素组成。</p>
+<ul>
+<li>一套被严密守护的代码体系</li>
+<li>当控制流离开被保护机构时执行的终止代码块</li>
+</ul>
+<p>终止处理程序以语言特定的语法声明。使用Microsoft C&#x2F;C++ 优化编译器，它们通过 <strong>__try</strong> 和 <strong>__finally</strong> 实现。更多信息请参见<a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/debug/handler-syntax">处理者语法</a>。</p>
+<p>受保护代码体可以是一个代码块、一组嵌套的块，或整个过程或函数。每当被守护的身体被执行时，终止代码块都会被执行。唯一的例外是线程在被保护体执行时终止（例如，当<a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-exitthread"><strong>ExitThread</strong></a>或<a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-exitprocess"><strong>ExitProcess</strong></a>函数从被保护体内部调用时）。</p>
+<p>当控制流离开被保护身体时，无论该机构是正常还是异常终止，终止阻断都会被执行。当块中最后一句话句被执行，控制顺序进入终止块时，守护体被视为正常终止。异常终止发生在控制流因异常或控制语句如<strong>返回</strong>、<strong>切换</strong>、<strong>中断</strong>或<strong>继续</strong>而离开被保护机构时。<a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/debug/abnormaltermination"><strong>AbnormalTermination</strong></a>函数可以在终止模块内部调用，以确定被保护的身体是否正常终止。</p>
+<h1 id="处理器语法"><a href="#处理器语法" class="headerlink" title="处理器语法"></a><strong>处理器语法</strong></h1><table>
+<thead>
+<tr>
+<th>关键词</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>__try</strong></td>
+<td>开始了一段谨慎的代码体系。与**__except<strong>关键字一起使用来构造<a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/debug/exception-handler-syntax">异常处理程序</a>，或与</strong>__finally**关键词一起使用来构建<a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/debug/termination-handler-syntax">终止处理程序</a>。</td>
+</tr>
+<tr>
+<td><strong>__except</strong></td>
+<td>开始一段代码，只有在其关联的**__try**块内出现异常时才执行。</td>
+</tr>
+<tr>
+<td><strong>__finally</strong></td>
+<td>开始一段代码，当控制流离开其关联**__try**块时执行。</td>
+</tr>
+<tr>
+<td><strong>__leave</strong></td>
+<td>允许立即终止**__try**块，而不会导致异常终止及其性能损失。</td>
+</tr>
+</tbody></table>
+<p>编译器还将 <a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/debug/getexceptioncode"><strong>GetExceptionCode</strong></a>、<a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/debug/getexceptioninformation"><strong>GetExceptionInformation</strong></a> 和 <a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/debug/abnormaltermination"><strong>AbnormalTermination</strong></a> 函数解释为关键词，若在适当的异常处理语法之外使用它们，则会导致编译器错误。以下是这些功能的简要描述。</p>
+<table>
+<thead>
+<tr>
+<th>功能</th>
+<th>描述</th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/debug/getexceptioncode"><strong>GetExceptionCode</strong></a></td>
+<td>返回一个识别异常类型的代码。该函数只能在过滤表达式或异常处理块内调用。</td>
+<td></td>
+</tr>
+<tr>
+<td><a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/debug/getexceptioninformation"><strong>获取例外信息</strong></a></td>
+<td>返回指向包含上下文记录和异常记录指针的<a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/desktop/api/WinNT/ns-winnt-exception_pointers"><strong>EXCEPTION_POINTERS</strong></a>结构的指针。该函数只能在异常处理程序的过滤表达式中调用。</td>
+<td></td>
+</tr>
+<tr>
+<td><a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/debug/abnormaltermination"><strong>异常终止</strong></a></td>
+<td>表示在执行块中最后一个语句后，控制流是否依次离开了关联<strong>的__try</strong>块。该函数只能在终止处理程序的**__finally**块内调用。</td>
+<td></td>
+</tr>
+</tbody></table>
+<h2 id="异常处理者语法"><a href="#异常处理者语法" class="headerlink" title="异常处理者语法"></a><strong>异常处理者语法</strong></h2><p><strong>__try</strong>和**__except**关键词用于构建基于帧的异常处理程序。以下示例展示了异常处理程序的结构。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">__try</span><br><span class="line">&#123;</span><br><span class="line">    <span class="comment">// guarded body of code</span></span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line">__except (filter-expression)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="comment">// exception-handler block</span></span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>注意，<strong>__try</strong>块和异常处理块都需要大括号（{}）。不允许使用<strong>goto</strong>语句跳转到**__try**块的正体或异常处理块。该规则适用于异常处理程序和终止处理程序。</p>
+<p><strong>__try</strong>块包含异常处理程序所保护的受保护代码体。一个函数可以有任意数量的异常处理程序，这些异常处理语句可以嵌套在同一函数中，也可以嵌套在不同函数中。如果**__try**块内发生异常，系统接管控制并开始寻找异常处理程序。有关此搜索的详细描述，请参见<a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/debug/exception-handling">异常处理</a>。</p>
+<p>异常处理程序只接收单个线程内发生的异常。这意味着如果**__try**块包含对<a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessa"><strong>CreateProcess</strong></a>或<a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createthread"><strong>CreateThread</strong></a>函数的调用，则新进程或线程内发生的异常不会被调派到该处理程序。</p>
+<p>系统会评估每个异常处理程序的过滤表达式，保护异常发生的代码，直到异常处理完毕或不再有处理程序。滤波器表达式必须作为以下三个值之一来计算。</p>
+<table>
+<thead>
+<tr>
+<th>价值</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>EXCEPTION_EXECUTE_HANDLER</strong></td>
+<td>系统将控制权转移给异常处理程序，执行在处理程序所在的堆栈帧中继续进行。</td>
+</tr>
+<tr>
+<td><strong>EXCEPTION_CONTINUE_SEARCH</strong></td>
+<td>系统继续寻找处理者。</td>
+</tr>
+<tr>
+<td><strong>EXCEPTION_CONTINUE_EXECUTION</strong></td>
+<td>系统停止寻找处理程序，并将控制权返回异常发生的点。如果异常不可连续，则会出现<strong>EXCEPTION_NONCONTINUABLE_EXCEPTION</strong>异常。</td>
+</tr>
+</tbody></table>
+<p>过滤器表达式是在异常处理程序所在函数的上下文中被评估的，尽管异常可能发生在不同的函数中。这意味着过滤器表达式可以访问函数的局部变量。同样，异常处理块也可以访问其所在函数的本地变量。</p>
+<p>更多示例请参见<a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/debug/using-an-exception-handler">“使用异常处理程序</a>”。</p>
+<p>有关滤波表达式和滤波函数的更多信息，请参见<a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/debug/frame-based-exception-handling">基于帧的异常处理</a>。</p>
+<h2 id="终止处理者语法"><a href="#终止处理者语法" class="headerlink" title="终止处理者语法"></a><strong>终止处理者语法</strong></h2><p><strong>__try</strong>和**__finally**关键词用于构建终端处理程序。以下示例展示了终止处理程序的结构。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">__try</span><br><span class="line">&#123;</span><br><span class="line">    <span class="comment">// guarded body of code</span></span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line">__finally</span><br><span class="line">&#123;</span><br><span class="line">    <span class="comment">// __finally block</span></span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>示例请参见<a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/debug/using-a-termination-handler">“使用终端处理程序</a>”。</p>
+<p>与异常处理程序一样，<strong>__try</strong>块和**__finally<strong>块都需要大括号（{}），不允许使用</strong>goto**语句跳转到任一块。</p>
+<p><strong>__try</strong>块包含受终止处理程序保护的代码体。一个函数可以有任意数量的终端处理程序，这些终端处理块可以嵌套在同一函数内或不同函数中。</p>
+<p>每当控制流离开**__try<strong>块时，执行</strong>__finally<strong>块。然而，如果您在</strong>__try<strong>块内调用以下任何函数：<a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-exitprocess"><strong>ExitProcess</strong></a>、<a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-exitthread"><strong>ExitThread</strong></a> 或 <strong>abort</strong>，</strong>__finally**块不会被执行。</p>
+<p><strong>__finally</strong>块在终止处理程序所在函数的上下文中执行。这意味着**__finally<strong>块可以访问该函数的本地变量。</strong>__finally**块的执行可以通过以下任一方式终止。</p>
+<ul>
+<li>执行该块中最后一条语句并继续到下一条指令</li>
+<li>控制语句的使用（<strong>返回</strong>、<strong>中断</strong>、<strong>继续</strong>或 <strong>goto</strong>)</li>
+<li>使用 <strong>longjmp</strong> 或跳转到异常处理程序</li>
+</ul>
+<p>如果**__try<strong>块的执行因异常调用了基于帧的异常处理程序的异常处理块而终止，那么</strong>__finally<strong>块会在异常处理块执行之前被执行。同样，调用 <strong>__try</strong> 块的 <strong>longjmp</strong> C 运行时库函数会导致 <strong>__finally</strong> 块在 <strong>longjmp</strong>作目标处恢复执行前先执行。如果</strong>__try<strong>块执行因控制语句（<strong>返回</strong>、<strong>中断</strong>、<strong>继续</strong>或 <strong>goto</strong>）而终止，则执行</strong>__finally**块。</p>
+<p>异常<a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows/win32/debug/abnormaltermination"><strong>终止</strong></a>函数可以在**__finally<strong>块内使用，以判断</strong>__try<strong>块是否顺序终止——即是否达到闭合括号（}）。因调用 <strong>longjmp</strong>、跳转到异常处理程序，或</strong>返回**、<strong>中断</strong>、<strong>继续</strong>或 <strong>goto</strong> 语句而离开**__try**块，被视为异常终止。注意，未能顺序终止会导致系统反向搜索所有堆栈帧，以确定是否需要调用任何终止处理程序。这可能导致性能下降，因为执行了数百条指令。</p>
+<p>为避免终止处理程序异常终止，执行应持续到分组结束。你也可以执行**__leave<strong>语句。</strong>__leave<strong>语句允许立即终止</strong>__try<strong>块，而不会导致异常终止及其性能损失。查看编译器文档，确认</strong>__leave**语句是否被支持。</p>
+<p>如果**__finally<strong>块的执行因</strong>返回<strong>控制语句而终止，则相当于在封闭函数</strong>中切换到**闭括括号。因此，包含函数将返回。</p>
+<hr>
+<p>对于CPU级的异常，CPU会通过IDT表寻找异常的处理函数，也就是KiTrapXX例程，会调用CommonDispatchException准备参数，然后调用内核分发函数KiDispatchException进行异常分发。<br>下面的图是内核异常分发总管KiDispatchException处理的流程。</p>
+<p><img src="file:///D:/my-blog/source/image/article/CTF/Learning%20Exception%20Handing/image.png" alt="image.png"></p>
+<p><img src="file:///D:/my-blog/source/image/article/CTF/Learning%20Exception%20Handing/image%201.png" alt="image.png"></p>
+<p>内核态异常的分发过程：<br>　　1.如果PreviousMode为KernelMode(0)，那么对于第一轮处理机会，KiDispatchException会试图先通知内核调试器来处理该异常。<br>　　2.内核变量KiDebugRoutine用来标识内核调试引擎交互的接口函数。当内核调试引擎启用时，KiDebugRoutine指向内核调试引擎KdpTrap，这个函数会进一步把异常信息封装为数据包发送给内核调试器，当调试内核调试引擎没有启用时，KiDebugRoutine指向KdpStub函数，简单处理后返回<br>　　3.如果KiDebugRoutine返回TRUE，也就是内核引擎处理了异常，那么KiDispatchException便停止继续分发，准备返回。如果KiDebugRoutine返回FALSE，也就是没有处理该异常，那么KiDispatchException会调用RtlDispatchException函数，试图寻找已经注册的结构化异常处理器(SEH)。会遍历异常登记链表，依次执行每个异常处理器。如果某个处理器除了了，RtlDispatchException返回TRUE，否则返回FALSE<br>　　4.RtlDispatchException返回FALSE，KiDispatchException会试图给内核调试器第二次机会，如果KiDebugRoutine仍然返回FALSE，那么KiDispatchException会认为这是无人处理的异常，会调用KeBugCheckEx<br>用户态异常的分发过程：<br>　　1.如果前一模式是用户模式，即PreviousMode参数等于UserMode(1),对于第一次处理机会，KiDispatchException会试图将异常分发给用户态的调试器，如果DebugPort不为空，将异常发送给调试子系统，调试子系统将异常发送给调试器，如果处理了异常分发结束。<br>　　2.如果调试器没有处理该异常，KiDispatchException修改用户态栈，返回用户层之后执行KiUserExceptionDispatcher，此函数会调用RtlDispatchException来寻找异常处理器，首先遍历VEH，然后遍历SEH，。如果RtlDispatchException返回FALSE，并且当前进程在被调试，那么KiUserExceptionDispatcher会调用ZwRaiseException并将FirstChance设置为FALSE，进行第二轮分发。如果没有被调试，结束进程。<br>　　3.ZwRaiseException会通过内核服务NtRaiseException把异常传递给KiDispatchException来进行分发。第二次，将异常传递给调试器，如果没有处理将异常分配给ExceptionPort异常端口监听者处理，如果返回FALSE，结束进程。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>Author: </span><span class="post-copyright-info"><a href="https://lyz-de.github.io/EMT-s-blog">EMT</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>Link: </span><span class="post-copyright-info"><a href="https://lyz-de.github.io/EMT-s-blog/2026/04/07/Learning-Exception-Handling-01/">https://lyz-de.github.io/EMT-s-blog/2026/04/07/Learning-Exception-Handling-01/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>Copyright Notice: </span><span class="post-copyright-info">All articles on this blog are licensed under <a target="_blank" rel="noopener" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a> unless otherwise stated.</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/EMT-s-blog/tags/CTF/">CTF</a></div><div class="post-share"><div class="social-share" data-image="/EMT-s-blog/image/avator_0.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"></nav></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/EMT-s-blog/image/avator_0.png" onerror="this.onerror=null;this.src='/EMT-s-blog/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">EMT</div><div class="author-info-description">▼・ᴥ・▼</div><div class="site-data"><a href="/EMT-s-blog/archives/"><div class="headline">Articles</div><div class="length-num">1</div></a><a href="/EMT-s-blog/tags/"><div class="headline">Tags</div><div class="length-num">1</div></a><a href="/EMT-s-blog/categories/"><div class="headline">Categories</div><div class="length-num">0</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/LYZ-DE"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>Announcement</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>Contents</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#FS-GS-%E5%8F%8A%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86"><span class="toc-number">1.</span> <span class="toc-text">FS - GS 及异常处理</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#FS-X86"><span class="toc-number">2.</span> <span class="toc-text">FS - X86</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#SEH"><span class="toc-number">3.</span> <span class="toc-text">SEH</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#OS-Exception-Handle"><span class="toc-number">3.1.</span> <span class="toc-text">OS Exception Handle</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%AD%A3%E5%B8%B8%E8%BF%90%E8%A1%8C%E6%97%B6%E7%9A%84%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86%E6%96%B9%E6%B3%95"><span class="toc-number">3.1.1.</span> <span class="toc-text">正常运行时的异常处理方法</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%B0%83%E8%AF%95%E8%BF%90%E8%A1%8C%E6%97%B6%E7%9A%84%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86%E6%96%B9%E6%B3%95"><span class="toc-number">3.1.2.</span> <span class="toc-text">调试运行时的异常处理方法</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Exception"><span class="toc-number">3.2.</span> <span class="toc-text">Exception</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#EXCEPTION-ACCESS-VIOLATION-C000-0005"><span class="toc-number">3.2.1.</span> <span class="toc-text">EXCEPTION_ACCESS_VIOLATION (C000 0005)</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#EXCEPTION-BREAKPOINT-8000-0003"><span class="toc-number">3.2.2.</span> <span class="toc-text">EXCEPTION_BREAKPOINT (8000 0003)</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#EXCEPTION-ILLGAL-INSTRUCTION-C000-001D"><span class="toc-number">3.2.3.</span> <span class="toc-text">EXCEPTION_ILLGAL_INSTRUCTION (C000 001D)</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#EXCETION-INT-DIVIDE-BY-ZERO-C000-0094"><span class="toc-number">3.2.4.</span> <span class="toc-text">EXCETION_INT_DIVIDE_BY_ZERO (C000 0094)</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#EXCEPTION-SINGLE-STEP-8000-0004"><span class="toc-number">3.2.5.</span> <span class="toc-text">EXCEPTION_SINGLE_STEP (8000 0004)</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#SEH-%E9%93%BE"><span class="toc-number">3.3.</span> <span class="toc-text">SEH 链</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#SEH-%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86%E5%87%BD%E6%95%B0%E7%9A%84%E5%AE%9A%E4%B9%89-except-handler"><span class="toc-number">3.3.1.</span> <span class="toc-text">SEH 异常处理函数的定义 _except_handler</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#except-handler-pRecord"><span class="toc-number">3.3.2.</span> <span class="toc-text">_except_handler-&gt; pRecord</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#except-handler-pContext"><span class="toc-number">3.3.3.</span> <span class="toc-text">_except_handler-&gt; pContext</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#EXCEPTION-DISPOSITION"><span class="toc-number">3.3.4.</span> <span class="toc-text">EXCEPTION_DISPOSITION</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#TEB-NtTib-ExceptionList"><span class="toc-number">3.4.</span> <span class="toc-text">TEB.NtTib.ExceptionList</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#SEH-%E5%AE%89%E8%A3%85%E6%96%B9%E6%B3%95"><span class="toc-number">3.5.</span> <span class="toc-text">SEH 安装方法</span></a></li></ol></li><li class="toc-item toc-level-1"><a class="toc-link" href="#TEB"><span class="toc-number">4.</span> <span class="toc-text">TEB</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#TEB-Access-Method"><span class="toc-number">4.1.</span> <span class="toc-text">TEB Access Method</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Important-Members-Of-The-TEB-Structure"><span class="toc-number">4.2.</span> <span class="toc-text">Important Members Of The TEB Structure</span></a></li></ol></li><li class="toc-item toc-level-1"><a class="toc-link" href="#PEB"><span class="toc-number">5.</span> <span class="toc-text">PEB</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#PEB-Access-Method"><span class="toc-number">5.1.</span> <span class="toc-text">PEB Access Method</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Important-Members-Of-The-PEB-Structure"><span class="toc-number">5.2.</span> <span class="toc-text">Important Members Of The PEB Structure</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#PEB-BeingDebugged"><span class="toc-number">5.2.1.</span> <span class="toc-text">PEB.BeingDebugged</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#PEB-ImageBaseAddress"><span class="toc-number">5.2.2.</span> <span class="toc-text">PEB.ImageBaseAddress</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#PEB-Ldr"><span class="toc-number">5.2.3.</span> <span class="toc-text">PEB.Ldr</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#PEB-ProcessHeap-PEB-NtGlobalFlag"><span class="toc-number">5.2.4.</span> <span class="toc-text">PEB.ProcessHeap &amp; PEB.NtGlobalFlag</span></a></li></ol></li></ol></li><li class="toc-item toc-level-1"><a class="toc-link" href="#GS-X64"><span class="toc-number">6.</span> <span class="toc-text">GS - X64</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86"><span class="toc-number">7.</span> <span class="toc-text">异常处理</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#%E5%BC%82%E5%B8%B8%E8%B0%83%E5%BA%A6"><span class="toc-number">8.</span> <span class="toc-text">异常调度</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#%E8%B0%83%E8%AF%95%E5%99%A8%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86"><span class="toc-number">9.</span> <span class="toc-text">调试器异常处理</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#%E6%B5%AE%E7%82%B9%E4%BE%8B%E5%A4%96"><span class="toc-number">10.</span> <span class="toc-text">浮点例外</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%BC%82%E5%B8%B8%E5%8F%91%E7%94%9F%E5%90%8E%EF%BC%8C%E5%A4%A7%E8%87%B4%E7%9A%84%E6%B5%81%E7%A8%8B%EF%BC%9F%E3%80%82"><span class="toc-number">10.1.</span> <span class="toc-text">异常发生后，大致的流程？。</span></a></li></ol></li><li class="toc-item toc-level-1"><a class="toc-link" href="#VEH"><span class="toc-number">11.</span> <span class="toc-text">VEH</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#%E5%9F%BA%E4%BA%8E%E5%B8%A7%E7%9A%84%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86"><span class="toc-number">12.</span> <span class="toc-text">基于帧的异常处理</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#%E7%BB%88%E7%AB%AF%E5%A4%84%E7%90%86"><span class="toc-number">13.</span> <span class="toc-text">终端处理</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#%E5%A4%84%E7%90%86%E5%99%A8%E8%AF%AD%E6%B3%95"><span class="toc-number">14.</span> <span class="toc-text">处理器语法</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86%E8%80%85%E8%AF%AD%E6%B3%95"><span class="toc-number">14.1.</span> <span class="toc-text">异常处理者语法</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%BB%88%E6%AD%A2%E5%A4%84%E7%90%86%E8%80%85%E8%AF%AD%E6%B3%95"><span class="toc-number">14.2.</span> <span class="toc-text">终止处理者语法</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>Recent Posts</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/EMT-s-blog/2026/04/07/Learning-Exception-Handling-01/" title="Learning Exception Handling - 01">Learning Exception Handling - 01</a><time datetime="2026-04-07T13:24:11.000Z" title="Created 2026-04-07 21:24:11">2026-04-07</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By EMT</span><span class="framework-info"><span>Framework </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.0.0</a><span class="footer-separator">|</span><span>Theme </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.1</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="Reading Mode"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="Toggle Between Light and Dark Mode"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="Toggle Between Single-column and Double-column"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="Settings"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="Table of Contents"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="Back to Top"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/EMT-s-blog/js/utils.js?v=5.5.1"></script><script src="/EMT-s-blog/js/main.js?v=5.5.1"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
